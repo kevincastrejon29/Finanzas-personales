@@ -30,35 +30,57 @@ tab_registro, tab_dashboard = st.tabs(["📝 Registrar Movimiento", "📈 Dashbo
 # --- PESTAÑA 1: FORMULARIO DE REGISTRO ---
 with tab_registro:
     st.subheader("Registrar Nueva Transacción")
-    with st.form("formulario_finanzas", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            fecha = st.date_input("Fecha", date.today())
-            cuenta = st.selectbox("Cuenta / Destino", ["Tarjeta Sueldo", "Tarjeta Gastos", "Cuenta CTS"])
-            tipo = st.selectbox("Tipo de Movimiento", ["Ingreso", "Gasto"])
-        with col2:
+    
+    # 1. Primera fila de inputs (El Tipo define el resto de la interfaz)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        fecha = st.date_input("Fecha", date.today())
+        tipo = st.selectbox("Tipo de Movimiento", ["Ingreso", "Gasto", "Transferencia"])
+        monto = st.number_input("Monto (S/)", min_value=0.0, format="%.2f", step=5.0)
+
+    # 2. Lógica condicional dinámica (Bifurcación)
+    with col2:
+        if tipo == "Ingreso":
+            cuenta = st.selectbox("Cuenta Destino", ["Tarjeta Sueldo", "Tarjeta Gastos", "Cuenta CTS"])
             categoria = st.selectbox("Categoría", [
-                "Sueldo", "Saldo Inicial", "Alimentación", "Transporte", 
-                "Aseo y Cuidado", "Deportes y Hobbies", "Educación", "Entretenimiento", "Otros"
+                "Sueldo", "Devoluciones", "Otros ingresos"
             ])
-            monto = st.number_input("Monto (S/)", min_value=0.0, format="%.2f", step=5.0)
-            descripcion = st.text_input("Descripción / Notas Cortas")
-        
-        guardar = st.form_submit_button("Guardar en base de datos")
-        
-        if guardar:
+            
+        elif tipo == "Gasto":
+            cuenta = st.selectbox("Cuenta Origen", ["Tarjeta Sueldo", "Tarjeta Gastos"])
+            categoria = st.selectbox("Categoría", [
+                "Alimentación", "Transporte", "Aseo y Cuidado Personal", 
+                "Deporte y Hobbies", "Suscripciones y Entretenimiento", 
+                "Educación y Desarrollo", "Otros Gastos"
+            ])
+            
+        else: # Si es Transferencia
+            cuenta_origen = st.selectbox("Desde la Cuenta (Sale el dinero)", ["Tarjeta Sueldo", "Tarjeta Gastos", "Cuenta CTS"])
+            cuenta = st.selectbox("Hacia la Cuenta (Entra el dinero)", ["Tarjeta Sueldo", "Tarjeta Gastos", "Cuenta CTS"])
+            categoria = "Transferencia" # Categoría fija automática para no ensuciar gráficos
+            st.info("Esto ajustará tus saldos sin afectar tus gráficos de gastos/ingresos.")
+
+        descripcion = st.text_input("Descripción / Notas Cortas")
+
+    # 3. Botón de guardado y lógica de base de datos
+    if st.button("Guardar en base de datos", type="primary", use_container_width=True):
+        if tipo == "Transferencia":
+            # Si es transferencia, creamos 2 registros para la contabilidad de doble partida
+            nuevo_dato = pd.DataFrame([
+                {"Fecha": fecha, "Cuenta": cuenta_origen, "Tipo": "Gasto", "Categoría": "Transferencia", "Monto": monto, "Descripción": descripcion},
+                {"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Ingreso", "Categoría": "Transferencia", "Monto": monto, "Descripción": descripcion}
+            ])
+        else:
+            # Registro normal de ingreso o gasto
             nuevo_dato = pd.DataFrame([{
                 "Fecha": fecha, "Cuenta": cuenta, "Tipo": tipo, 
                 "Categoría": categoria, "Monto": monto, "Descripción": descripcion
             }])
-            df = pd.concat([df, nuevo_dato], ignore_index=True)
             
-            # Sobrescribir el Google Sheets con el nuevo dataframe actualizado
-            conn.update(worksheet="Transacciones", data=df)
-            
-            st.success("¡Transacción registrada y sincronizada en Google Sheets!")
-            st.rerun()
-
+        df = pd.concat([df, nuevo_dato], ignore_index=True)
+        conn.update(worksheet="Transacciones", data=df)
+        st.success("¡Transacción registrada exitosamente!")
 
 # --- PESTAÑA 2: DASHBOARD FINANCIERO PROFESIONAL ---
 with tab_dashboard:
