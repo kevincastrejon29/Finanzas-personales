@@ -6,8 +6,36 @@ from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="Control Financiero Pro", page_icon="💰", layout="wide")
 
+# --- 🔒 SISTEMA DE AUTENTICACIÓN ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+
+if not st.session_state["autenticado"]:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.title("🔒 Acceso Seguro")
+        st.write("Por favor, identifícate para ver tus finanzas.")
+        with st.form("login_form"):
+            usuario = st.text_input("Usuario")
+            # type="password" oculta el texto con asteriscos
+            password = st.text_input("Contraseña", type="password") 
+            ingresar = st.form_submit_button("Ingresar", use_container_width=True)
+            
+            if ingresar:
+                # El código verifica contra los secretos de la nube
+                if usuario == st.secrets["credenciales"]["usuario"] and password == st.secrets["credenciales"]["password"]:
+                    st.session_state["autenticado"] = True
+                    st.rerun() # Recarga la página ya con acceso permitido
+                else:
+                    st.error("❌ Usuario o contraseña incorrectos.")
+    # st.stop() detiene la ejecución aquí. Nada de lo que esté abajo se cargará ni se verá.
+    st.stop() 
+# --- FIN DEL SISTEMA DE AUTENTICACIÓN ---
+
 # Establecer la conexión con la API de Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# ... (Todo el resto de tu código de ETL, Dashboard y Formularios sigue aquí, intacto)
 
 # Función de extracción desde la nube
 def cargar_datos():
