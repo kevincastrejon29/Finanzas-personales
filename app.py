@@ -1,22 +1,23 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import os
 from datetime import date
+from streamlit_gsheets import GSheetsConnection
 
-# 1. Configuración principal de la página
 st.set_page_config(page_title="Control Financiero Pro", page_icon="💰", layout="wide")
 
-# Nombre de la tabla de hechos
-ARCHIVO_DATOS = "finanzas_personales.csv"
+# Establecer la conexión con la API de Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 2. Función de extracción y parseo de fechas (ETL)
+# Función de extracción desde la nube
 def cargar_datos():
-    if os.path.exists(ARCHIVO_DATOS):
-        df = pd.read_csv(ARCHIVO_DATOS)
+    try:
+        # Lee los datos directamente desde el sheet
+        df = conn.read(worksheet="Transacciones", usecols=list(range(6)), ttl=0)
+        df = df.dropna(how="all") # Limpia cualquier fila vacía al final del Excel
         df['Fecha'] = pd.to_datetime(df['Fecha']).dt.date
         return df
-    else:
+    except Exception as e:
         return pd.DataFrame(columns=["Fecha", "Cuenta", "Tipo", "Categoría", "Monto", "Descripción"])
 
 df = cargar_datos()
@@ -24,7 +25,6 @@ df = cargar_datos()
 st.title("📊 Sistema de Inteligencia Financiera Personal")
 st.markdown("---")
 
-# 3. Arquitectura de Pestañas
 tab_registro, tab_dashboard = st.tabs(["📝 Registrar Movimiento", "📈 Dashboard e Indicadores Pro"])
 
 # --- PESTAÑA 1: FORMULARIO DE REGISTRO ---
@@ -52,9 +52,13 @@ with tab_registro:
                 "Categoría": categoria, "Monto": monto, "Descripción": descripcion
             }])
             df = pd.concat([df, nuevo_dato], ignore_index=True)
-            df.to_csv(ARCHIVO_DATOS, index=False)
-            st.success("¡Transacción registrada exitosamente!")
+            
+            # Sobrescribir el Google Sheets con el nuevo dataframe actualizado
+            conn.update(worksheet="Transacciones", data=df)
+            
+            st.success("¡Transacción registrada y sincronizada en Google Sheets!")
             st.rerun()
+
 
 # --- PESTAÑA 2: DASHBOARD FINANCIERO PROFESIONAL ---
 with tab_dashboard:
