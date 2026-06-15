@@ -17,132 +17,173 @@ if not st.session_state["autenticado"]:
         st.write("Por favor, identifícate para ver tus finanzas.")
         with st.form("login_form"):
             usuario = st.text_input("Usuario")
-            # type="password" oculta el texto con asteriscos
             password = st.text_input("Contraseña", type="password") 
             ingresar = st.form_submit_button("Ingresar", use_container_width=True)
             
             if ingresar:
-                # El código verifica contra los secretos de la nube
                 if usuario == st.secrets["credenciales"]["usuario"] and password == st.secrets["credenciales"]["password"]:
                     st.session_state["autenticado"] = True
-                    st.rerun() # Recarga la página ya con acceso permitido
+                    st.rerun()
                 else:
                     st.error("❌ Usuario o contraseña incorrectos.")
-    # st.stop() detiene la ejecución aquí. Nada de lo que esté abajo se cargará ni se verá.
     st.stop() 
 # --- FIN DEL SISTEMA DE AUTENTICACIÓN ---
 
-# Establecer la conexión con la API de Google Sheets
+# Conexión principal a Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# ... (Todo el resto de tu código de ETL, Dashboard y Formularios sigue aquí, intacto)
-
-# Función de extracción desde la nube
-def cargar_datos():
+# Extracción de Datos (Tablas Transacciones y Prestamos)
+def cargar_transacciones():
     try:
-        # Lee los datos directamente desde el sheet
         df = conn.read(worksheet="Transacciones", usecols=list(range(6)), ttl=0)
-        df = df.dropna(how="all") # Limpia cualquier fila vacía al final del Excel
+        df = df.dropna(how="all")
         df['Fecha'] = pd.to_datetime(df['Fecha']).dt.date
         return df
-    except Exception as e:
+    except:
         return pd.DataFrame(columns=["Fecha", "Cuenta", "Tipo", "Categoría", "Monto", "Descripción"])
 
-df = cargar_datos()
+def cargar_prestamos():
+    try:
+        df = conn.read(worksheet="Prestamos", usecols=list(range(7)), ttl=0)
+        df = df.dropna(how="all")
+        df['Fecha'] = pd.to_datetime(df['Fecha']).dt.date
+        df['Fecha_Devolucion'] = pd.to_datetime(df['Fecha_Devolucion']).dt.date
+        return df
+    except:
+        return pd.DataFrame(columns=["Fecha", "Persona", "Monto", "Interes", "Fecha_Devolucion", "Cuenta", "Estado"])
+
+df = cargar_transacciones()
+df_p = cargar_prestamos()
 
 st.title("📊 Sistema de Inteligencia Financiera Personal")
 st.markdown("---")
 
 tab_registro, tab_dashboard = st.tabs(["📝 Registrar Movimiento", "📈 Dashboard e Indicadores Pro"])
 
-# --- PESTAÑA 1: FORMULARIO DE REGISTRO ---
+# --- PESTAÑA 1: FORMULARIO DE REGISTRO OPTIMIZADO ---
 with tab_registro:
     st.subheader("Registrar Nueva Transacción")
     
-    # 1. Primera fila de inputs (El Tipo define el resto de la interfaz)
     col1, col2 = st.columns(2)
-    
     with col1:
         fecha = st.date_input("Fecha", date.today())
-        tipo = st.selectbox("Tipo de Movimiento", ["Ingreso", "Gasto", "Transferencia"])
+        tipo = st.selectbox("Tipo de Movimiento", ["Ingreso", "Gasto", "Transferencia", "Préstamo Otorgado", "Cobro de Préstamo"])
         monto = st.number_input("Monto (S/)", min_value=0.0, format="%.2f", step=5.0)
 
-    # 2. Lógica condicional dinámica (Bifurcación)
     with col2:
         if tipo == "Ingreso":
             cuenta = st.selectbox("Cuenta Destino", ["Tarjeta Sueldo", "Tarjeta Gastos", "Cuenta CTS"])
-            categoria = st.selectbox("Categoría", [
-                "Sueldo", "Devoluciones", "Otros ingresos"
-            ])
+            categoria = st.selectbox("Categoría", ["Sueldo", "Devoluciones", "Otros ingresos"])
+            descripcion = st.text_input("Descripción / Notas Cortas")
             
         elif tipo == "Gasto":
             cuenta = st.selectbox("Cuenta Origen", ["Tarjeta Sueldo", "Tarjeta Gastos"])
-            categoria = st.selectbox("Categoría", [
-                "Alimentación", "Transporte", "Aseo y Cuidado Personal", 
-                "Deporte y Hobbies", "Suscripciones y Entretenimiento", 
-                "Educación y Desarrollo", "Otros Gastos"
-            ])
+            categoria = st.selectbox("Categoría", ["Alimentación", "Transporte", "Aseo y Cuidado Personal", "Deporte y Hobbies", "Suscripciones entertainment", "Educación", "Otros Gastos"])
+            descripcion = st.text_input("Descripción / Notas Cortas")
             
-        else: # Si es Transferencia
-            cuenta_origen = st.selectbox("Desde la Cuenta (Sale el dinero)", ["Tarjeta Sueldo", "Tarjeta Gastos", "Cuenta CTS"])
-            cuenta = st.selectbox("Hacia la Cuenta (Entra el dinero)", ["Tarjeta Sueldo", "Tarjeta Gastos", "Cuenta CTS"])
-            categoria = "Transferencia" # Categoría fija automática para no ensuciar gráficos
-            st.info("Esto ajustará tus saldos sin afectar tus gráficos de gastos/ingresos.")
+        elif tipo == "Transferencia":
+            cuenta_origen = st.selectbox("Desde la Cuenta", ["Tarjeta Sueldo", "Tarjeta Gastos", "Cuenta CTS"])
+            cuenta = st.selectbox("Hacia la Cuenta", ["Tarjeta Sueldo", "Tarjeta Gastos", "Cuenta CTS"])
+            categoria = "Transferencia"
+            descripcion = st.text_input("Descripción / Notas Cortas", "Traspaso de fondos propio")
+            
+        elif tipo == "Préstamo Otorgado":
+            cuenta = st.selectbox("Cuenta Origen (De donde sale el dinero)", ["Tarjeta Sueldo", "Tarjeta Gastos"])
+            persona = st.text_input("¿A quién le prestas? (Nombre)")
+            interes = st.number_input("Porcentaje de Interés (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.5)
+            fecha_dev = st.date_input("Fecha estimada de devolución", date.today())
+            categoria = "Préstamo Otorgado"
+            descripcion = st.text_input("Descripción", f"Préstamo a {persona}")
+            
+        elif tipo == "Cobro de Préstamo":
+            df_p_pendientes = df_p[df_p["Estado"] == "Pendiente"]
+            if df_p_pendientes.empty:
+                st.warning("No registras préstamos pendientes por cobrar.")
+                st.stop()
+            
+            # Formatear opciones legibles para el selector
+            opciones_p = df_p_pendientes.apply(lambda x: f"{x['Persona']} | S/ {x['Monto']} (Vence: {x['Fecha_Devolucion']})", axis=1).tolist()
+            prestamo_sel = st.selectbox("Selecciona el préstamo a cobrar", opciones_p)
+            
+            # Extraer fila seleccionada
+            idx_sel = opciones_p.index(prestamo_sel)
+            p_registro = df_p_pendientes.iloc[idx_sel]
+            
+            cuenta = st.selectbox("Cuenta Destino (Donde ingresa el dinero)", ["Tarjeta Sueldo", "Tarjeta Gastos"])
+            categoria = "Préstamo Cobrado"
+            # Calcular el monto final considerando si se pactó interés
+            monto_final = float(p_registro['Monto']) * (1 + (float(p_registro['Interes']) / 100))
+            st.success(f"Monto calculado a recibir (con interés si aplica): S/ {monto_final:,.2f}")
+            descripcion = st.text_input("Descripción", f"Cobro devuelto por {p_registro['Persona']}")
 
-        descripcion = st.text_input("Descripción / Notas Cortas")
-
-    # 3. Botón de guardado y lógica de base de datos
     if st.button("Guardar en base de datos", type="primary", use_container_width=True):
+        # LÓGICA DE ESCRITURA SEGÚN EL TIPO
         if tipo == "Transferencia":
-            # Si es transferencia, creamos 2 registros para la contabilidad de doble partida
-            nuevo_dato = pd.DataFrame([
+            nuevo_trans = pd.DataFrame([
                 {"Fecha": fecha, "Cuenta": cuenta_origen, "Tipo": "Gasto", "Categoría": "Transferencia", "Monto": monto, "Descripción": descripcion},
                 {"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Ingreso", "Categoría": "Transferencia", "Monto": monto, "Descripción": descripcion}
             ])
-        else:
-            # Registro normal de ingreso o gasto
-            nuevo_dato = pd.DataFrame([{
-                "Fecha": fecha, "Cuenta": cuenta, "Tipo": tipo, 
-                "Categoría": categoria, "Monto": monto, "Descripción": descripcion
-            }])
+            df = pd.concat([df, nuevo_trans], ignore_index=True)
+            conn.update(worksheet="Transacciones", data=df)
             
-        df = pd.concat([df, nuevo_dato], ignore_index=True)
-        conn.update(worksheet="Transacciones", data=df)
-        st.success("¡Transacción registrada exitosamente!")
+        elif tipo == "Préstamo Otorgado":
+            # 1. Afecta el saldo restando el dinero de la cuenta elegida
+            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Gasto", "Categoría": "Préstamo Otorgado", "Monto": monto, "Descripción": descripcion}])
+            df = pd.concat([df, nuevo_trans], ignore_index=True)
+            conn.update(worksheet="Transacciones", data=df)
+            
+            # 2. Crea el registro de control de deuda activa
+            nuevo_p = pd.DataFrame([{"Fecha": fecha, "Persona": persona, "Monto": monto, "Interes": interes, "Fecha_Devolucion": fecha_dev, "Cuenta": cuenta, "Estado": "Pendiente"}])
+            df_p = pd.concat([df_p, nuevo_p], ignore_index=True)
+            conn.update(worksheet="Prestamos", data=df_p)
+            
+        elif tipo == "Cobro de Préstamo":
+            # 1. Afecta el saldo sumando el dinero de vuelta
+            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Ingreso", "Categoría": "Préstamo Cobrado", "Monto": monto_final, "Descripción": descripcion}])
+            df = pd.concat([df, nuevo_trans], ignore_index=True)
+            conn.update(worksheet="Transacciones", data=df)
+            
+            # 2. Actualiza el estado del préstamo original en la tabla de control
+            # Encontrar el índice original exacto emparejando criterios básicos
+            condicion = (df_p['Persona'] == p_registro['Persona']) & (df_p['Monto'] == p_registro['Monto']) & (df_p['Estado'] == 'Pendiente')
+            df_p.loc[condicion, 'Estado'] = 'Cobrado'
+            conn.update(worksheet="Prestamos", data=df_p)
+        
+        else: # Ingreso o Gasto normal
+            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": tipo, "Categoría": categoria, "Monto": monto, "Descripción": descripcion}])
+            df = pd.concat([df, nuevo_trans], ignore_index=True)
+            conn.update(worksheet="Transacciones", data=df)
+            
+        st.success("¡Operación procesada y sincronizada correctamente!")
+        st.rerun()
 
 # --- PESTAÑA 2: DASHBOARD FINANCIERO PROFESIONAL ---
 with tab_dashboard:
     if df.empty:
-        st.info("Ingresa transacciones en la pestaña de registro para activar el análisis analítico.")
+        st.info("No hay datos operativos registrados.")
     else:
-        # Preparación de columnas de tiempo para el análisis en Pandas
         df['Fecha_DT'] = pd.to_datetime(df['Fecha'])
         df['Año'] = df['Fecha_DT'].dt.year
         df['Mes_Num'] = df['Fecha_DT'].dt.month
         
-        # Mapeo de meses en español
         meses_es = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio", 
                     7:"Julio", 8:"Agosto", 9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"}
         df['Mes'] = df['Mes_Num'].map(meses_es)
 
-        # --- SECCIÓN 0: FILTROS LATERALES DINÁMICOS (Por defecto mes/año actual) ---
+        # Filtros Laterales
         hoy = date.today()
         año_actual = hoy.year
         mes_actual_nombre = meses_es[hoy.month]
 
         st.sidebar.header("🔍 Filtros de Tiempo")
-        
-        # Listas únicas para los selectores de la barra lateral
         lista_años = sorted(list(df['Año'].unique()))
-        if año_actual not in lista_años:
-            lista_años.append(año_actual)
-            
+        if año_actual not in lista_años: lista_años.append(año_actual)
         filtro_año = st.sidebar.selectbox("Selecciona el Año", lista_años, index=lista_años.index(año_actual))
         
         lista_meses = list(meses_es.values())
         filtro_mes = st.sidebar.selectbox("Selecciona el Mes", lista_meses, index=lista_meses.index(mes_actual_nombre))
 
-        # --- CÁLCULO DE SALDOS GLOBALES EN VIVO (Histórico acumulado independiente del filtro de mes) ---
+        # Cálculo de Saldos de Cuentas (Histórico Acumulado)
         df['Valor_Real'] = df.apply(lambda x: x['Monto'] if x['Tipo'] == 'Ingreso' else -x['Monto'], axis=1)
         
         saldo_sueldo = df[df["Cuenta"] == "Tarjeta Sueldo"]['Valor_Real'].sum()
@@ -150,93 +191,79 @@ with tab_dashboard:
         saldo_cts = df[df["Cuenta"] == "Cuenta CTS"]['Valor_Real'].sum()
         
         liquidez_disponible = saldo_sueldo + saldo_gastos
-        patrimonio_total = liquidez_disponible + saldo_cts
 
-        # Mostrar KPIS de Saldos Reales (No mensuales, sino acumulados al día de hoy)
         st.subheader("💰 Estado de Cuentas (Saldos Actuales)")
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
         kpi1.metric("💳 Tarjeta Sueldo", f"S/ {saldo_sueldo:,.2f}")
         kpi2.metric("🛍️ Tarjeta Gastos", f"S/ {saldo_gastos:,.2f}")
-        kpi3.metric("🔒 Fondo CTS (Intangible)", f"S/ {saldo_cts:,.2f}")
-        kpi4.metric("💵 Liquidez para Gastar", f"S/ {liquidez_disponible:,.2f}", 
-                    help="Suma de tus tarjetas de uso diario. Excluye tu CTS por salud financiera.")
+        kpi3.metric("🔒 Fondo CTS", f"S/ {saldo_cts:,.2f}")
+        kpi4.metric("💵 Liquidez para Gastar", f"S/ {liquidez_disponible:,.2f}")
         
         st.divider()
 
-        # --- APLICACIÓN DE FILTROS PARA EL ANÁLISIS MENSUAL ---
+        # Análisis Mensual Filtrado
         df_filtrado = df[(df['Año'] == filtro_año) & (df['Mes'] == filtro_mes)]
         
-        # Excluir Saldo Inicial de los cálculos de flujos operativos del mes
-        df_operativo = df_filtrado[df_filtrado['Categoría'] != 'Saldo Inicial']
+        # EXCLUSIÓN CRÍTICA: Quitamos saldos iniciales, transferencias y préstamos para medir consumo real operativo
+        exclusiones = ['Saldo Inicial', 'Transferencia', 'Préstamo Otorgado', 'Préstamo Cobrado']
+        df_operativo = df_filtrado[~df_filtrado['Categoría'].isin(exclusiones)]
         
         ingresos_mes = df_operativo[df_operativo['Tipo'] == 'Ingreso']['Monto'].sum()
         gastos_mes = df_operativo[df_operativo['Tipo'] == 'Gasto']['Monto'].sum()
         balance_mes = ingresos_mes - gastos_mes
 
-        st.subheader(f"📈 Análisis Operativo de {filtro_mes} del {filtro_año}")
-        
+        st.subheader(f"📈 Análisis Operativo - {filtro_mes} {filtro_año}")
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.metric("📥 Ingresos del Mes", f"S/ {ingresos_mes:,.2f}")
-        col_m2.metric("📤 Gastos del Mes", f"S/ {gastos_mes:,.2f}")
-        col_m3.metric("⚖️ Balance Neto", f"S/ {balance_mes:,.2f}", 
-                      delta=f"{balance_mes:,.2f}" if balance_mes >= 0 else f"{balance_mes:,.2f}",
-                      delta_color="normal")
+        col_m2.metric("📤 Gastos Consumo", f"S/ {gastos_mes:,.2f}")
+        col_m3.metric("⚖️ Balance Neto", f"S/ {balance_mes:,.2f}", delta=f"{balance_mes:,.2f}")
 
-        # --- SECCIÓN: ALERTAS DE CONTROL FINANCIERO Y TOMA DE DECISIONES ---
-        st.markdown("#### 🚨 Semáforo de Control Presupuestal")
+        # --- 🔍 NUEVA SECCIÓN: CONTROL DE PRÉSTAMOS ACTIVOS ---
+        st.divider()
+        st.subheader("🤝 Control de Préstamos y Cuentas por Cobrar")
         
-        if liquidez_disponible < 200:
-            st.error(f"⚠️ **¡Alerta de Liquidez Crítica!** Tu saldo disponible en tarjetas es de S/ {liquidez_disponible:.2f}. Evita cualquier gasto no esencial inmediatamente.")
+        df_p_pendientes = df_p[df_p["Estado"] == "Pendiente"]
         
-        if ingresos_mes > 0:
-            tasa_ahorro = (balance_mes / ingresos_mes) * 100
-            if balance_mes < 0:
-                st.error(f"🛑 **Déficit Financiero:** Este mes estás gastando más de lo que ingresas (Déficit de S/ {abs(balance_mes):,.2f}). ¡Detén consumos innecesarios!")
-            elif tasa_ahorro < 10:
-                st.warning(f"⚠️ **Zona de Riesgo:** Tu tasa de ahorro es muy baja ({tasa_ahorro:.1f}%). Estás viviendo muy al límite de tus ingresos. Intenta ajustar el gasto de entretenimiento o alimentación.")
-            elif tasa_ahorro >= 20:
-                st.success(f"✅ **Salud Financiera Excelente:** Has ahorrado el {tasa_ahorro:.1f}% de tus ingresos este mes. ¡Vas por muy buen camino para tus metas!")
-            else:
-                st.info(f"💡 **Estabilidad:** Tu tasa de ahorro es del {tasa_ahorro:.1f}%. Cumples con el mínimo recomendado, pero evalúa si puedes optimizar algún servicio o gasto menor.")
+        if not df_p_pendientes.empty:
+            total_prestado = df_p_pendientes["Monto"].sum()
+            st.info(f"🚩 Tienes un total de **S/ {total_prestado:,.2f}** colocados en préstamos pendientes de cobro.")
+            
+            # Preparar tabla visual explicativa
+            df_p_visual = df_p_pendientes[["Fecha", "Persona", "Monto", "Interes", "Fecha_Devolucion", "Cuenta"]].copy()
+            df_p_visual["Días para el Cobro"] = df_p_visual["Fecha_Devolucion"].apply(lambda x: (x - date.today()).days)
+            
+            # Alertar visualmente si hay retrasos financieros
+            retrasados = df_p_visual[df_p_visual["Días para el Cobro"] < 0]
+            if not retrasados.empty:
+                st.error(f"⚠️ ¡Atención! Hay {len(retrasados)} préstamo(s) que ya cumplieron su fecha estimada de retorno.")
+                
+            st.dataframe(df_p_visual, use_container_width=True)
         else:
-            if gastos_mes > 0:
-                st.warning("Aún no registras ingresos operativos este mes, pero ya reportas gastos. Monitorea tu balance.")
-            else:
-                st.info("Sin movimientos operativos registrados en este periodo de tiempo.")
-
+            st.success("✅ No tienes capital fuera. Todos tus fondos están dentro de tus cuentas personales.")
+        
         st.divider()
 
-        # --- SECCIÓN: GRÁFICOS INTERACTIVOS ---
+        # Gráficos Operativos
         col_g1, col_g2 = st.columns(2)
-        
         with col_g1:
-            st.markdown("#### 🍩 Composición del Gasto del Mes")
+            st.markdown("#### 🍩 Composición del Gasto del Mes (Consumo Real)")
             df_gastos_mes = df_operativo[df_operativo['Tipo'] == 'Gasto']
             if not df_gastos_mes.empty:
                 gastos_pie = df_gastos_mes.groupby("Categoría")["Monto"].sum().reset_index()
-                fig_pie = px.pie(gastos_pie, values="Monto", names="Categoría", 
-                                 hole=0.4, title="¿A dónde se fue tu dinero?")
+                fig_pie = px.pie(gastos_pie, values="Monto", names="Categoría", hole=0.4)
                 fig_pie.update_traces(textinfo='percent+label')
                 st.plotly_chart(fig_pie, use_container_width=True)
             else:
-                st.info("No hay gastos registrados en este mes para generar el gráfico.")
+                st.info("Sin consumos registrados en este periodo.")
 
         with col_g2:
-            st.markdown("#### 📈 Comportamiento Anual (Ingresos vs Gastos)")
-            # Agrupar todo el año operativo para ver la tendencia de los meses
-            df_año = df[(df['Año'] == filtro_año) & (df['Categoría'] != 'Saldo Inicial')]
+            st.markdown("#### 📈 Tendencia Anual Operativa")
+            df_año = df[(df['Año'] == filtro_año) & (~df['Categoría'].isin(exclusiones))]
             if not df_año.empty:
-                tendencia = df_año.groupby(["Mes_Num", "Mes", "Tipo"])["Monto"].sum().reset_index()
-                tendencia = tendencia.sort_values("Mes_Num")
-                
-                fig_line = px.line(tendencia, x="Mes", y="Monto", color="Tipo",
-                                   markers=True, title=f"Evolución Histórica - {filtro_año}",
+                tendencia = df_año.groupby(["Mes_Num", "Mes", "Tipo"])["Monto"].sum().reset_index().sort_values("Mes_Num")
+                fig_line = px.line(tendencia, x="Mes", y="Monto", color="Tipo", markers=True,
                                    color_discrete_map={"Ingreso": "#00CC96", "Gasto": "#EF553B"})
                 st.plotly_chart(fig_line, use_container_width=True)
-            else:
-                st.info("Datos insuficientes para trazar la tendencia anual.")
 
-        # Tabla Transaccional Detallada del Mes
-        with st.expander(f"🔍 Ver Transacciones Detalladas de {filtro_mes}"):
-            st.dataframe(df_filtrado.sort_values(by="Fecha", ascending=False)[["Fecha", "Cuenta", "Tipo", "Categoría", "Monto", "Descripción"]], 
-                         use_container_width=True)
+        with st.expander(f"🔍 Ver Libro Diario Filtrado"):
+            st.dataframe(df_filtrado.sort_values(by="Fecha", ascending=False)[["Fecha", "Cuenta", "Tipo", "Categoría", "Monto", "Descripción"]], use_container_width=True)
