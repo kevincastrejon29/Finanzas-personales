@@ -55,7 +55,7 @@ def cargar_prestamos():
 df = cargar_transacciones()
 df_p = cargar_prestamos()
 
-st.title("📊 Sistema de Inteligencia Financiera Personal")
+st.title("Sistema de Inteligencia Financiera Personal")
 st.markdown("---")
 
 tab_registro, tab_dashboard = st.tabs(["📝 Registrar Movimiento", "📈 Dashboard e Indicadores Pro"])
@@ -187,7 +187,7 @@ with tab_dashboard:
         
         liquidez_disponible = saldo_sueldo + saldo_gastos + saldo_efectivo
 
-        st.subheader("💰 Estado de Cuentas (Saldos Actuales)")
+        st.subheader("Estado de Cuentas (Saldos Actuales)")
         # Ajustamos las columnas para mostrar 5 métricas ahora
         kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
         kpi1.metric("💳 Tarjeta Sueldo", f"S/ {saldo_sueldo:,.2f}")
@@ -206,14 +206,14 @@ with tab_dashboard:
         gastos_mes = df_operativo[df_operativo['Tipo'] == 'Gasto']['Monto'].sum()
         balance_mes = ingresos_mes - gastos_mes
 
-        st.subheader(f"📈 Análisis Operativo - {filtro_mes} {filtro_año}")
+        st.subheader(f"Análisis Operativo - {filtro_mes} {filtro_año}")
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.metric("📥 Ingresos del Mes", f"S/ {ingresos_mes:,.2f}")
         col_m2.metric("📤 Gastos Consumo", f"S/ {gastos_mes:,.2f}")
         col_m3.metric("⚖️ Balance Neto", f"S/ {balance_mes:,.2f}", delta=f"{balance_mes:,.2f}")
 
         st.divider()
-        st.subheader("🤝 Control de Préstamos y Cuentas por Cobrar")
+        st.subheader("Control de Préstamos y Cuentas por Cobrar")
         
         df_p_pendientes = df_p[df_p["Estado"] == "Pendiente"]
         if not df_p_pendientes.empty:
@@ -235,7 +235,7 @@ with tab_dashboard:
 
         col_g1, col_g2 = st.columns(2)
         with col_g1:
-            st.markdown("#### 🍩 Composición del Gasto del Mes")
+            st.markdown("#### Composición del Gasto del Mes")
             df_gastos_mes = df_operativo[df_operativo['Tipo'] == 'Gasto']
             if not df_gastos_mes.empty:
                 gastos_pie = df_gastos_mes.groupby("Categoría")["Monto"].sum().reset_index()
@@ -246,7 +246,7 @@ with tab_dashboard:
                 st.info("Sin consumos registrados en este periodo.")
 
         with col_g2:
-            st.markdown("#### 📈 Tendencia Anual Operativa")
+            st.markdown("#### Tendencia Anual Operativa")
             df_año = df[(df['Año'] == filtro_año) & (~df['Categoría'].isin(exclusiones))]
             if not df_año.empty:
                 tendencia = df_año.groupby(["Mes_Num", "Mes", "Tipo"])["Monto"].sum().reset_index().sort_values("Mes_Num")
