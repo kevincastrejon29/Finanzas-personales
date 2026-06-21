@@ -5,7 +5,7 @@ from datetime import date
 from streamlit_gsheets import GSheetsConnection
 
 # Configuración limpia sin icono de página
-st.set_page_config(page_title="Gestión Patrimonial", layout="wide")
+st.set_page_config(page_title="Finanzas personales", layout="wide")
 
 # --- SISTEMA DE AUTENTICACIÓN ---
 if "autenticado" not in st.session_state:
@@ -78,7 +78,7 @@ def cargar_prestamos():
 df = cargar_transacciones()
 df_p = cargar_prestamos()
 
-st.title("Sistema de Gestión Patrimonial y Flujo de Caja")
+st.title("Finanzas personales")
 st.markdown("---")
 
 tab_registro, tab_dashboard = st.tabs(["Registrar Transacción", "Panel de Control Ejecutivo"])
