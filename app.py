@@ -5,7 +5,7 @@ from datetime import date
 from streamlit_gsheets import GSheetsConnection
 
 # Configuración limpia sin icono de página
-st.set_page_config(page_title="Finanzas personales", layout="wide")
+st.set_page_config(page_title="Gestión Patrimonial", layout="wide")
 
 # --- SISTEMA DE AUTENTICACIÓN ---
 if "autenticado" not in st.session_state:
@@ -78,27 +78,33 @@ def cargar_prestamos():
 df = cargar_transacciones()
 df_p = cargar_prestamos()
 
-st.title("Finanzas personales")
+st.title("Sistema de Gestión Patrimonial y Flujo de Caja")
 st.markdown("---")
 
 tab_registro, tab_dashboard = st.tabs(["Registrar Transacción", "Panel de Control Ejecutivo"])
 
-# --- PESTAÑA 1: FORMULARIO DE CAPTURA REACTIVO Y AUTOLIMPIABLE ---
+# --- PESTAÑA 1: FORMULARIO REACTIVO CON RE-INSTANCIACIÓN DINÁMICA ---
 with tab_registro:
     st.subheader("Ingreso de Movimientos")
     cuentas_todas = ["Tarjeta Sueldo", "Tarjeta Gastos", "Efectivo", "Cuenta CTS"]
     cuentas_operativas = ["Tarjeta Sueldo", "Tarjeta Gastos", "Efectivo"]
     
-    # Declaración de memoria de sesión para autolimpieza de campos
-    if "reg_monto" not in st.session_state: st.session_state["reg_monto"] = 0.0
-    if "reg_desc" not in st.session_state: st.session_state["reg_desc"] = ""
+    # Variables de control de ciclo de vida del formulario
+    if "form_id" not in st.session_state: st.session_state["form_id"] = 0
+    if "mensaje_exito" not in st.session_state: st.session_state["mensaje_exito"] = None
 
-    # Estructura liberada de st.form para garantizar reactividad instantánea
+    # Desplegar notificación persistente de éxito si existe
+    if st.session_state["mensaje_exito"]:
+        st.success(st.session_state["mensaje_exito"])
+        st.session_state["mensaje_exito"] = None # Limpiar para el siguiente ciclo
+
+    # Estructura de captura
     col1, col2 = st.columns(2)
     with col1:
         fecha = st.date_input("Fecha de Transacción", date.today())
         tipo = st.selectbox("Tipo de Operación", ["Gasto", "Ingreso", "Transferencia", "Préstamo Otorgado", "Cobro de Préstamo"])
-        monto = st.number_input("Monto (S/)", min_value=0.0, format="%.2f", step=5.0, key="reg_monto")
+        # Atamos el form_id a la clave de los inputs a limpiar
+        monto = st.number_input("Monto (S/)", min_value=0.0, format="%.2f", step=5.0, key=f"monto_{st.session_state['form_id']}")
 
     with col2:
         if tipo == "Ingreso":
@@ -143,11 +149,10 @@ with tab_registro:
             monto_final = float(p_registro['Monto']) * (1 + (float(p_registro['Interes']) / 100))
             st.success(f"Ingreso total calculado (Capital + Intereses): S/ {monto_final:,.2f}")
 
-        # Declaración única de la descripción para mantener la estabilidad del ID en Streamlit
-        descripcion = st.text_input("Descripción / Referencia (Opcional)", key="reg_desc")
+        # Atamos el form_id a la clave de la descripción
+        descripcion = st.text_input("Descripción / Referencia (Opcional)", key=f"desc_{st.session_state['form_id']}")
 
     if st.button("Procesar y Guardar Transacción", type="primary", use_container_width=True):
-        # Autocompletado inteligente de descripción si se deja vacía
         if descripcion.strip() == "":
             if tipo == "Transferencia": desc_guardar = f"Traspaso: {cuenta_origen} -> {cuenta}"
             elif tipo == "Préstamo Otorgado": desc_guardar = f"Préstamo otorgado a {persona}"
@@ -156,7 +161,7 @@ with tab_registro:
         else:
             desc_guardar = descripcion
 
-        # Re-lectura de seguridad de la base de datos real en la nube
+        # Re-lectura obligatoria de seguridad para evitar sobreescritura de datos
         df_nube = cargar_transacciones()
         df_p_nube = cargar_prestamos()
 
@@ -190,11 +195,9 @@ with tab_registro:
             df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
             conn.update(worksheet="Transacciones", data=df_final)
             
-        # Forzar el reinicio de las cajas de texto y números a cero
-        st.session_state["reg_monto"] = 0.0
-        st.session_state["reg_desc"] = ""
-        
-        st.success("Operación procesada con éxito. Formulario limpio y listo para nueva captura.")
+        # Incrementar el ID del formulario para generar nuevos inputs limpios y guardar notificación
+        st.session_state["form_id"] += 1
+        st.session_state["mensaje_exito"] = "Transacción registrada e integrada exitosamente en Google Sheets."
         st.rerun()
 
 # --- PESTAÑA 2: PANEL DE CONTROL EJECUTIVO ---
