@@ -37,7 +37,7 @@ SUBCATEGORIAS_GASTO = {
     "Aseo y cuidado personal": ["Productos de aseo", "Barbería / peluquería", "Cosmética", "Ropa interior y cuidado personal"],
     "Ropa y accesorios": ["Ropa diaria", "Calzado", "Accesorios", "Reparaciones de ropa"],
     "Educación y desarrollo": ["Cursos y certificaciones", "Libros", "Plataformas educativas", "Idiomas", "Eventos académicos"],
-    "Deportes y hobbies": ["Equipamiento deportivo", "Inscripciones", "Clases", "Materiales de hobby"],
+    "Deportes y hobbies": ["Equipamiento deportivo", "Inscripciones", "Clases", "Mantenimiento"],
     "Suscripciones y entretenimiento": ["Streaming (Netflix, Spotify, etc.)", "Videojuegos", "Cine y espectáculos", "Suscripciones digitales"],
     "Finanzas y obligaciones": ["Créditos y préstamos", "Tarjetas de crédito", "Intereses", "Comisiones bancarias", "Impuestos"],
     "Ahorro e inversión": ["Ahorro programado", "Inversiones", "Fondo de emergencia", "Jubilación"],
