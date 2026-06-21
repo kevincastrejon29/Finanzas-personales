@@ -78,7 +78,7 @@ def cargar_prestamos():
 df = cargar_transacciones()
 df_p = cargar_prestamos()
 
-st.title("Sistema de Gestión Patrimonial y Flujo de Caja")
+st.title("Análisis y Control de Finanzas Personales")
 st.markdown("---")
 
 tab_registro, tab_dashboard = st.tabs(["Registrar Transacción", "Panel de Control Ejecutivo"])
