@@ -28,10 +28,9 @@ if not st.session_state["autenticado"]:
                     st.error("Credenciales incorrectas. Verifique e intente nuevamente.")
     st.stop() 
 
-# --- ÁRBOL DE JERARQUÍAS (DICCIONARIOS MAESTROS) ---
+# --- ÁRBOL DE JERARQUÍAS ACTUALIZADO ---
 SUBCATEGORIAS_GASTO = {
-    "Alimentación": ["Supermercado", "Restaurantes y delivery", "Cafés y snacks", "Agua, bebidas, suplementos"],
-    # --- VIVIENDA ACTUALIZADA ---
+    "Alimentación": ["Supermercado", "Restaurantes y delivery", "Cafés y snacks", "Agua, bebidas, suplementos alimenticios"],
     "Vivienda": ["Arriendo / hipoteca", "Servicios básicos (agua, luz, gas)", "Internet y TV", "Mantenimiento y reparaciones", "Muebles y equipamiento", "Suministros y aseo del hogar"],
     "Transporte": ["Transporte público", "Combustible", "Mantenimiento vehicular", "Estacionamientos y peajes", "Taxi (Uber, InDrive, Didi)"],
     "Salud y bienestar": ["Seguro médico", "Consultas y medicamentos", "Terapias", "Gimnasio", "Exámenes médicos"],
@@ -40,7 +39,7 @@ SUBCATEGORIAS_GASTO = {
     "Educación y desarrollo": ["Cursos y certificaciones", "Libros", "Plataformas educativas", "Idiomas", "Eventos académicos"],
     "Deportes y hobbies": ["Equipamiento deportivo", "Inscripciones", "Clases", "Materiales de hobby"],
     "Suscripciones y entretenimiento": ["Streaming (Netflix, Spotify, etc.)", "Videojuegos", "Cine y espectáculos", "Suscripciones digitales"],
-    "Finanzas y obligaciones": ["Créditos y préstamos", "Tarjetas de crédito", "Intereses", "Comisiones bancarias", "Impuestos"],
+    "Finanzas y obligations": ["Créditos y préstamos", "Tarjetas de crédito", "Intereses", "Comisiones bancarias", "Impuestos"],
     "Ahorro e inversión": ["Ahorro programado", "Inversiones", "Fondo de emergencia", "Jubilación"],
     "Regalos y donaciones": ["Regalos", "Donaciones", "Eventos sociales"],
     "Tecnología y comunicación": ["Teléfono móvil", "Equipos electrónicos", "Software no recurrente", "Accesorios tecnológicos"]
@@ -49,7 +48,7 @@ SUBCATEGORIAS_GASTO = {
 SUBCATEGORIAS_INGRESO = {
     "Sueldo": ["Pago regular", "Bono / Gratificación", "Adelanto"],
     "Devoluciones": ["Reembolso de tienda", "Devolución de terceros"],
-    "Otros ingresos": ["Cachuelo / Freelance", "Yape", "Rendimientos / Intereses"]
+    "Otros ingresos": ["Cachuelo / Freelance", "Venta de cosas", "Rendimientos / Intereses"]
 }
 
 # Conexión a Google Sheets
@@ -165,7 +164,7 @@ with tab_registro:
         st.success("Operación registrada e integrada en la base de datos con éxito.")
         st.rerun()
 
-# --- PESTAÑA 2: DASHBOARD FINANCIERO PROFESIONAL ---
+# --- PESTAÑA 2: PANEL DE CONTROL EJECUTIVO ---
 with tab_dashboard:
     if df.empty:
         st.info("No existen registros operativos para analizar.")
@@ -182,24 +181,53 @@ with tab_dashboard:
         año_actual = hoy.year
         mes_actual_nombre = meses_es[hoy.month]
 
-        # Barra Lateral
+        # --- BARRA LATERAL: ARQUITECTURA DE FILTROS EN CASCADA ---
         st.sidebar.header("Parámetros de Análisis")
-        lista_años = sorted(list(df['Año'].unique()))
-        if año_actual not in lista_años: lista_años.append(año_actual)
-        filtro_año = st.sidebar.selectbox("Ejercicio Fiscal (Año)", lista_años, index=lista_años.index(año_actual))
+        filtro_año = st.sidebar.selectbox("Ejercicio Fiscal (Año)", sorted(list(df['Año'].unique())), index=sorted(list(df['Año'].unique())).index(año_actual) if año_actual in df['Año'].unique() else 0)
+        filtro_mes = st.sidebar.selectbox("Periodo (Mes)", list(meses_es.values()), index=list(meses_es.values()).index(mes_actual_nombre))
         
-        lista_meses = list(meses_es.values())
-        filtro_mes = st.sidebar.selectbox("Periodo (Mes)", lista_meses, index=lista_meses.index(mes_actual_nombre))
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("Filtros de Estructura Condicional")
+        
+        # 1. Filtro de Tipo de Flujo (Ingreso / Gasto)
+        filtro_tipo_flujo = st.sidebar.selectbox("Tipo de Flujo", ["Todos los Movimientos", "Ingreso", "Gasto"])
 
-        # Filtro de Categoría
+        # Dataframe base filtrado por fecha para mapear la cascada real del periodo
         df_filtrado_mes = df[(df['Año'] == filtro_año) & (df['Mes'] == filtro_mes)]
         exclusiones_filtro = ['Saldo Inicial', 'Transferencia', 'Préstamo Otorgado', 'Préstamo Cobrado']
-        categorias_disponibles = sorted(list(df_filtrado_mes[~df_filtrado_mes['Categoría'].isin(exclusiones_filtro)]['Categoría'].unique()))
+        df_base_cascade = df_filtrado_mes[~df_filtrado_mes['Categoría'].isin(exclusiones_filtro)]
+
+        # Inicialización de opciones de cascada
+        opciones_categorias = ["Todas las Categorías"]
+        opciones_subcategorias = ["Todas las Subcategorías"]
         
-        opciones_categorias = ["Todas las Categorías"] + categorias_disponibles
+        # 2. Cascada Condicional para Categorías según el Tipo de Flujo
+        if filtro_tipo_flujo == "Ingreso":
+            cats_reales = sorted(list(df_base_cascade[df_base_cascade['Tipo'] == 'Ingreso']['Categoría'].unique()))
+            opciones_categorias += cats_reales
+        elif filtro_tipo_flujo == "Gasto":
+            cats_reales = sorted(list(df_base_cascade[df_base_cascade['Tipo'] == 'Gasto']['Categoría'].unique()))
+            opciones_categorias += cats_reales
+        else:
+            cats_reales = sorted(list(df_base_cascade['Categoría'].unique()))
+            opciones_categorias += cats_reales
+
         filtro_categoria = st.sidebar.selectbox("Segmento de Categoría", opciones_categorias)
 
-        # Saldos Globales
+        # 3. Cascada Condicional para Subcategorías según la Categoría seleccionada
+        if filtro_categoria != "Todas las Categorías":
+            subcats_reales = sorted(list(df_base_cascade[df_base_cascade['Categoría'] == filtro_categoria]['Subcategoría'].unique()))
+            opciones_subcategorias += subcats_reales
+        else:
+            if filtro_tipo_flujo != "Todos los Movimientos":
+                subcats_reales = sorted(list(df_base_cascade[df_base_cascade['Tipo'] == filtro_tipo_flujo]['Subcategoría'].unique()))
+            else:
+                subcats_reales = sorted(list(df_base_cascade['Subcategoría'].unique()))
+            opciones_subcategorias += subcats_reales
+
+        filtro_subcategoria = st.sidebar.selectbox("Segmento de Subcategoría", opciones_subcategorias)
+
+        # --- CÁLCULO DE SALDOS ACTUALES GLOBALES ---
         df['Valor_Real'] = df.apply(lambda x: x['Monto'] if x['Tipo'] == 'Ingreso' else -x['Monto'], axis=1)
         saldo_sueldo = df[df["Cuenta"] == "Tarjeta Sueldo"]['Valor_Real'].sum()
         saldo_gastos = df[df["Cuenta"] == "Tarjeta Gastos"]['Valor_Real'].sum()
@@ -216,19 +244,16 @@ with tab_dashboard:
         kpi5.metric("Liquidez Disponible", f"S/ {liquidez_disponible:,.2f}")
         st.divider()
 
-        # Fórmulas de Flujo Operativo
+        # Fórmulas de Flujo Operativo Estático Mensual
         exclusiones_consumo = exclusiones_filtro + ['Ahorro e inversión']
-        
         ingresos_mes = df_filtrado_mes[(df_filtrado_mes['Tipo'] == 'Ingreso') & (~df_filtrado_mes['Categoría'].isin(exclusiones_filtro))]['Monto'].sum()
         gastos_consumo = df_filtrado_mes[(df_filtrado_mes['Tipo'] == 'Gasto') & (~df_filtrado_mes['Categoría'].isin(exclusiones_consumo))]['Monto'].sum()
         ahorro_inversion_mes = df_filtrado_mes[(df_filtrado_mes['Tipo'] == 'Gasto') & (df_filtrado_mes['Categoría'] == 'Ahorro e inversión')]['Monto'].sum()
-        
         flujo_libre = ingresos_mes - gastos_consumo - ahorro_inversion_mes
 
-        st.subheader(f"Desempeño Operativo — {filtro_mes} {filtro_año}")
+        st.subheader(f"Desempeño Operativo General — {filtro_mes} {filtro_año}")
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("Ingresos Operativos", f"S/ {ingresos_mes:,.2f}")
-        # --- AQUÍ ESTÁ LA LÍNEA CORREGIDA ---
         col_m2.metric("Gastos de Consumo", f"S/ {gastos_consumo:,.2f}", help="Capital consumido en operaciones del mes. Excluye transferencias a cuentas de ahorro e inversión.")
         col_m3.metric("Ahorro e Inversión", f"S/ {ahorro_inversion_mes:,.2f}", help="Capital reservado y transferido hacia el incremento patrimonial.")
         col_m4.metric("Flujo Libre Neto", f"S/ {flujo_libre:,.2f}", help="Excedente de liquidez tras cubrir obligaciones operativas y de inversión.")
@@ -249,32 +274,59 @@ with tab_dashboard:
             st.write("No se reportan deudas de capital activas a favor.")
         st.divider()
 
-        # --- GRÁFICOS DINÁMICOS ---
-        df_operativo_mes = df_filtrado_mes[~df_filtrado_mes['Categoría'].isin(exclusiones_filtro)]
-        if filtro_categoria != "Todas las Categorías":
-            df_graficos = df_operativo_mes[df_operativo_mes['Categoría'] == filtro_categoria]
-            df_tabla_final = df_filtrado_mes[df_filtrado_mes['Categoría'] == filtro_categoria]
-        else:
-            df_graficos = df_operativo_mes
-            df_tabla_final = df_filtrado_mes
+        # --- APLICACIÓN CASCADA DE FILTROS PARA GRÁFICOS Y TABLA ---
+        df_graficos = df_base_cascade.copy()
+        df_tabla_final = df_filtrado_mes.copy()
 
+        if filtro_tipo_flujo != "Todos los Movimientos":
+            df_graficos = df_graficos[df_graficos['Tipo'] == filtro_tipo_flujo]
+            df_tabla_final = df_tabla_final[df_tabla_final['Tipo'] == filtro_tipo_flujo]
+
+        if filtro_categoria != "Todas las Categorías":
+            df_graficos = df_graficos[df_graficos['Categoría'] == filtro_categoria]
+            df_tabla_final = df_tabla_final[df_tabla_final['Categoría'] == filtro_categoria]
+
+        if filtro_subcategoria != "Todas las Subcategorías":
+            df_graficos = df_graficos[df_graficos['Subcategoría'] == filtro_subcategoria]
+            df_tabla_final = df_tabla_final[df_tabla_final['Subcategoría'] == filtro_subcategoria]
+
+        # --- SECCIÓN GRÁFICA INTERACTIVA ---
         col_g1, col_g2 = st.columns(2)
         with col_g1:
-            if filtro_categoria != "Todas las Categorías":
-                st.markdown(f"#### Desglose de Subcategorías: {filtro_categoria}")
-                df_pie = df_graficos
-                if not df_pie.empty:
-                    pie_data = df_pie.groupby("Subcategoría")["Monto"].sum().reset_index()
-                    fig_pie = px.pie(pie_data, values="Monto", names="Subcategoría", hole=0.4)
+            st.markdown("#### Composición de Canales de Distribución")
+            
+            # Caso 1: Se seleccionó una Subcategoría específica
+            if filtro_subcategoria != "Todas las Subcategorías":
+                monto_especifico = df_graficos["Monto"].sum()
+                st.info(f"El impacto financiero neto acumulado en la subcategoría {filtro_subcategoria} es de S/ {monto_especifico:,.2f} para el periodo fiscal seleccionado.")
+            
+            # Caso 2: Se seleccionó una Categoría pero quiere ver el desglose completo de sus Subcategorías
+            elif filtro_categoria != "Todas las Categorías":
+                if not df_graficos.empty:
+                    pie_data = df_graficos.groupby("Subcategoría")["Monto"].sum().reset_index()
+                    fig_pie = px.pie(pie_data, values="Monto", names="Subcategoría", hole=0.4, title=f"Subcategorías de {filtro_categoria}")
                     fig_pie.update_traces(textinfo='percent+label')
                     st.plotly_chart(fig_pie, use_container_width=True)
-                else: st.write("No hay datos para graficar.")
+                else: st.write("Sin registros operativos.")
+            
+            # Caso 3: Vista de un Flujo específico (Ingreso o Gasto) sin cerrar categorías
+            elif filtro_tipo_flujo != "Todos los Movimientos":
+                if not df_graficos.empty:
+                    # Si es Gasto, excluimos la inversión del gráfico de consumo regular
+                    if filtro_tipo_flujo == "Gasto":
+                        df_graficos = df_graficos[~df_graficos['Categoría'].isin(exclusiones_consumo)]
+                    pie_data = df_graficos.groupby("Categoría")["Monto"].sum().reset_index()
+                    fig_pie = px.pie(pie_data, values="Monto", names="Categoría", hole=0.4, title=f"Estructura del {filtro_tipo_flujo}")
+                    fig_pie.update_traces(textinfo='percent+label')
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                else: st.write("Sin movimientos detectados.")
+            
+            # Caso 4: Estado por defecto global (Gastos de Consumo Operativos)
             else:
-                st.markdown("#### Distribución del Gasto Operativo")
                 df_pie_general = df_graficos[(df_graficos['Tipo'] == 'Gasto') & (~df_graficos['Categoría'].isin(exclusiones_consumo))]
                 if not df_pie_general.empty:
                     pie_data = df_pie_general.groupby("Categoría")["Monto"].sum().reset_index()
-                    fig_pie = px.pie(pie_data, values="Monto", names="Categoría", hole=0.4)
+                    fig_pie = px.pie(pie_data, values="Monto", names="Categoría", hole=0.4, title="Estructura de Gastos Generales")
                     fig_pie.update_traces(textinfo='percent+label')
                     st.plotly_chart(fig_pie, use_container_width=True)
                 else: st.write("No se reportan gastos de consumo en este periodo.")
@@ -288,7 +340,9 @@ with tab_dashboard:
                                    color_discrete_map={"Ingreso": "#00CC96", "Gasto": "#EF553B"})
                 st.plotly_chart(fig_line, use_container_width=True)
 
-        titulo_tabla = f"Detalle Transaccional: {filtro_categoria}" if filtro_categoria != "Todas las Categorías" else f"Libro Diario de Operaciones ({filtro_mes})"
-        with st.expander(titulo_tabla):
-            if df_tabla_final.empty: st.write("No se encontraron registros.")
-            else: st.dataframe(df_tabla_final.sort_values(by="Fecha", ascending=False)[["Fecha", "Cuenta", "Tipo", "Categoría", "Subcategoría", "Monto", "Descripción"]], use_container_width=True)
+        # --- LIBRO DIARIO AUTOMÁTICO EN CASCADA ---
+        with st.expander("Libro Diario de Operaciones Auditadas"):
+            if df_tabla_final.empty: 
+                st.write("No se encontraron registros bajo el árbol de jerarquías seleccionado.")
+            else: 
+                st.dataframe(df_tabla_final.sort_values(by="Fecha", ascending=False)[["Fecha", "Cuenta", "Tipo", "Categoría", "Subcategoría", "Monto", "Descripción"]], use_container_width=True)
