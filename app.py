@@ -28,7 +28,7 @@ if not st.session_state["autenticado"]:
                     st.error("Credenciales incorrectas. Verifique e intente nuevamente.")
     st.stop() 
 
-# --- ÁRBOL DE JERARQUÍAS ---
+# --- ÁRBOL DE JERARQUÍAS ACTUALIZADO ---
 SUBCATEGORIAS_GASTO = {
     "Alimentación": ["Supermercado", "Restaurantes y delivery", "Cafés y snacks", "Agua, bebidas, suplementos alimenticios"],
     "Vivienda": ["Arriendo / hipoteca", "Servicios básicos (agua, luz, gas)", "Internet y TV", "Mantenimiento y reparaciones", "Muebles y equipamiento", "Suministros y aseo del hogar"],
@@ -38,7 +38,7 @@ SUBCATEGORIAS_GASTO = {
     "Ropa y accesorios": ["Ropa diaria", "Calzado", "Accesorios", "Reparaciones de ropa"],
     "Educación y desarrollo": ["Cursos y certificaciones", "Libros", "Plataformas educativas", "Idiomas", "Eventos académicos"],
     "Deportes y hobbies": ["Equipamiento deportivo", "Inscripciones", "Clases", "Materiales de hobby"],
-    "Suscripciones y entretenimiento": ["Streaming (Netflix, Spotify, etc.)", "Videojuegos", "Cine y espectáculo", "Suscripciones digitales"],
+    "Suscripciones y entretenimiento": ["Streaming (Netflix, Spotify, etc.)", "Videojuegos", "Cine y espectáculos", "Suscripciones digitales"],
     "Finanzas y obligaciones": ["Créditos y préstamos", "Tarjetas de crédito", "Intereses", "Comisiones bancarias", "Impuestos"],
     "Ahorro e inversión": ["Ahorro programado", "Inversiones", "Fondo de emergencia", "Jubilación"],
     "Regalos y donaciones": ["Regalos", "Donaciones", "Eventos sociales"],
@@ -78,118 +78,124 @@ def cargar_prestamos():
 df = cargar_transacciones()
 df_p = cargar_prestamos()
 
-st.title("Análisis y Control de Finanzas Personales")
+st.title("Finanzas personales")
 st.markdown("---")
 
 tab_registro, tab_dashboard = st.tabs(["Registrar Transacción", "Panel de Control Ejecutivo"])
 
-# --- PESTAÑA 1: FORMULARIO DE REGISTRO AUTOLIMPIABLE ---
+# --- PESTAÑA 1: FORMULARIO DE CAPTURA REACTIVO Y AUTOLIMPIABLE ---
 with tab_registro:
     st.subheader("Ingreso de Movimientos")
     cuentas_todas = ["Tarjeta Sueldo", "Tarjeta Gastos", "Efectivo", "Cuenta CTS"]
     cuentas_operativas = ["Tarjeta Sueldo", "Tarjeta Gastos", "Efectivo"]
     
-    # Usamos st.form para permitir la limpieza de campos automática al enviar (clear_on_submit=True)
-    with st.form("formulario_registro_limpio", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            fecha = st.date_input("Fecha de Transacción", date.today())
-            tipo = st.selectbox("Tipo de Operación", ["Gasto", "Ingreso", "Transferencia", "Préstamo Otorgado", "Cobro de Préstamo"])
-            monto = st.number_input("Monto (S/)", min_value=0.0, format="%.2f", step=5.0)
+    # Declaración de memoria de sesión para autolimpieza de campos
+    if "reg_monto" not in st.session_state: st.session_state["reg_monto"] = 0.0
+    if "reg_desc" not in st.session_state: st.session_state["reg_desc"] = ""
 
-        with col2:
-            if tipo == "Ingreso":
-                cuenta = st.selectbox("Cuenta Destino", cuentas_todas)
-                categoria = st.selectbox("Categoría", list(SUBCATEGORIAS_INGRESO.keys()))
-                subcategoria = st.selectbox("Subcategoría", SUBCATEGORIAS_INGRESO[categoria])
-                descripcion = st.text_input("Descripción / Referencia")
-                
-            elif tipo == "Gasto":
-                cuenta = st.selectbox("Cuenta de Origen", cuentas_operativas)
-                categoria = st.selectbox("Categoría", list(SUBCATEGORIAS_GASTO.keys()))
-                subcategoria = st.selectbox("Subcategoría", SUBCATEGORIAS_GASTO[categoria])
-                descripcion = st.text_input("Descripción / Referencia")
-                
-            elif tipo == "Transferencia":
-                cuenta_origen = st.selectbox("Cuenta de Origen (Salida)", cuentas_todas)
-                cuenta = st.selectbox("Cuenta de Destino (Entrada)", cuentas_todas)
-                categoria = "Transferencia"
-                subcategoria = "Traspaso interno"
-                descripcion = st.text_input("Descripción / Referencia", "Traspaso de fondos entre cuentas")
-                
-            elif tipo == "Préstamo Otorgado":
-                cuenta = st.selectbox("Cuenta de Origen", cuentas_operativas)
-                persona = st.text_input("Deudor (Nombre completo)")
-                interes = st.number_input("Tasa de Interés Pactada (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.5)
-                fecha_dev = st.date_input("Fecha de Vencimiento", date.today())
-                categoria = "Préstamo Otorgado"
-                subcategoria = f"A: {persona}"
-                descripcion = st.text_input("Descripción / Referencia", f"Préstamo otorgado a {persona}")
-                
-            elif tipo == "Cobro de Préstamo":
-                df_p_pendientes = df_p[df_p["Estado"] == "Pendiente"]
-                if df_p_pendientes.empty:
-                    st.warning("No se registran cuentas por cobrar pendientes en el sistema.")
-                    cuenta = cuentas_operativas[0]
-                    categoria = "Préstamo Cobrado"
-                    subcategoria = "General"
-                    descripcion = "Sin préstamos pendientes"
-                else:
-                    opciones_p = df_p_pendientes.apply(lambda x: f"{x['Persona']} | S/ {x['Monto']} (Vence: {x['Fecha_Devolucion']})", axis=1).tolist()
-                    prestamo_sel = st.selectbox("Seleccionar Cuenta por Cobrar", opciones_p)
-                    idx_sel = opciones_p.index(prestamo_sel)
-                    p_registro = df_p_pendientes.iloc[idx_sel]
-                    cuenta = st.selectbox("Cuenta de Destino (Ingreso)", cuentas_operativas)
-                    categoria = "Préstamo Cobrado"
-                    subcategoria = f"De: {p_registro['Persona']}"
-                    monto_final = float(p_registro['Monto']) * (1 + (float(p_registro['Interes']) / 100))
-                    st.success(f"Ingreso total calculado (Capital + Intereses): S/ {monto_final:,.2f}")
-                    descripcion = st.text_input("Descripción / Referencia", f"Liquidación de préstamo por {p_registro['Persona']}")
+    # Estructura liberada de st.form para garantizar reactividad instantánea
+    col1, col2 = st.columns(2)
+    with col1:
+        fecha = st.date_input("Fecha de Transacción", date.today())
+        tipo = st.selectbox("Tipo de Operación", ["Gasto", "Ingreso", "Transferencia", "Préstamo Otorgado", "Cobro de Préstamo"])
+        monto = st.number_input("Monto (S/)", min_value=0.0, format="%.2f", step=5.0, key="reg_monto")
 
-        # Botón de envío oficial del Formulario
-        boton_guardar = st.form_submit_button("Procesar y Guardar Transacción", type="primary", use_container_width=True)
+    with col2:
+        if tipo == "Ingreso":
+            cuenta = st.selectbox("Cuenta Destino", cuentas_todas)
+            categoria = st.selectbox("Categoría", list(SUBCATEGORIAS_INGRESO.keys()))
+            subcategoria = st.selectbox("Subcategoría", SUBCATEGORIAS_INGRESO[categoria])
+            persona = ""
+            
+        elif tipo == "Gasto":
+            cuenta = st.selectbox("Cuenta de Origen", cuentas_operativas)
+            categoria = st.selectbox("Categoría", list(SUBCATEGORIAS_GASTO.keys()))
+            subcategoria = st.selectbox("Subcategoría", SUBCATEGORIAS_GASTO[categoria])
+            persona = ""
+            
+        elif tipo == "Transferencia":
+            cuenta_origen = st.selectbox("Cuenta de Origen (Salida)", cuentas_todas)
+            cuenta = st.selectbox("Cuenta de Destino (Entrada)", cuentas_todas)
+            categoria = "Transferencia"
+            subcategoria = "Traspaso interno"
+            persona = ""
+            
+        elif tipo == "Préstamo Otorgado":
+            cuenta = st.selectbox("Cuenta de Origen", cuentas_operativas)
+            persona = st.text_input("Deudor (Nombre completo)")
+            interes = st.number_input("Tasa de Interés Pactada (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.5)
+            fecha_dev = st.date_input("Fecha de Vencimiento", date.today())
+            categoria = "Préstamo Otorgado"
+            subcategoria = f"A: {persona}"
+            
+        elif tipo == "Cobro de Préstamo":
+            df_p_pendientes = df_p[df_p["Estado"] == "Pendiente"]
+            if df_p_pendientes.empty:
+                st.warning("No se registran cuentas por cobrar pendientes en el sistema.")
+                st.stop()
+            opciones_p = df_p_pendientes.apply(lambda x: f"{x['Persona']} | S/ {x['Monto']} (Vence: {x['Fecha_Devolucion']})", axis=1).tolist()
+            prestamo_sel = st.selectbox("Seleccionar Cuenta por Cobrar", opciones_p)
+            idx_sel = opciones_p.index(prestamo_sel)
+            p_registro = df_p_pendientes.iloc[idx_sel]
+            cuenta = st.selectbox("Cuenta de Destino (Ingreso)", cuentas_operativas)
+            categoria = "Préstamo Cobrado"
+            subcategoria = f"De: {p_registro['Persona']}"
+            monto_final = float(p_registro['Monto']) * (1 + (float(p_registro['Interes']) / 100))
+            st.success(f"Ingreso total calculado (Capital + Intereses): S/ {monto_final:,.2f}")
+
+        # Declaración única de la descripción para mantener la estabilidad del ID en Streamlit
+        descripcion = st.text_input("Descripción / Referencia (Opcional)", key="reg_desc")
+
+    if st.button("Procesar y Guardar Transacción", type="primary", use_container_width=True):
+        # Autocompletado inteligente de descripción si se deja vacía
+        if descripcion.strip() == "":
+            if tipo == "Transferencia": desc_guardar = f"Traspaso: {cuenta_origen} -> {cuenta}"
+            elif tipo == "Préstamo Otorgado": desc_guardar = f"Préstamo otorgado a {persona}"
+            elif tipo == "Cobro de Préstamo": desc_guardar = f"Liquidación de préstamo por {p_registro['Persona']}"
+            else: desc_guardar = f"{categoria} — {subcategoria}"
+        else:
+            desc_guardar = descripcion
+
+        # Re-lectura de seguridad de la base de datos real en la nube
+        df_nube = cargar_transacciones()
+        df_p_nube = cargar_prestamos()
+
+        if tipo == "Transferencia":
+            nuevo_trans = pd.DataFrame([
+                {"Fecha": fecha, "Cuenta": cuenta_origen, "Tipo": "Gasto", "Categoría": "Transferencia", "Subcategoría": subcategoria, "Monto": monto, "Descripción": desc_guardar},
+                {"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Ingreso", "Categoría": "Transferencia", "Subcategoría": subcategoria, "Monto": monto, "Descripción": desc_guardar}
+            ])
+            df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
+            conn.update(worksheet="Transacciones", data=df_final)
+            
+        elif tipo == "Préstamo Otorgado":
+            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Gasto", "Categoría": "Préstamo Otorgado", "Subcategoría": subcategoria, "Monto": monto, "Descripción": desc_guardar}])
+            df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
+            conn.update(worksheet="Transacciones", data=df_final)
+            
+            nuevo_p = pd.DataFrame([{"Fecha": fecha, "Persona": persona, "Monto": monto, "Interes": interes, "Fecha_Devolucion": fecha_dev, "Cuenta": cuenta, "Estado": "Pendiente"}])
+            df_p_final = pd.concat([df_p_nube, nuevo_p], ignore_index=True)
+            conn.update(worksheet="Prestamos", data=df_p_final)
+            
+        elif tipo == "Cobro de Préstamo":
+            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Ingreso", "Categoría": "Préstamo Cobrado", "Subcategoría": subcategoria, "Monto": monto_final, "Descripción": desc_guardar}])
+            df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
+            conn.update(worksheet="Transacciones", data=df_final)
+            
+            condicion = (df_p_nube['Persona'] == p_registro['Persona']) & (df_p_nube['Monto'] == p_registro['Monto']) & (df_p_nube['Estado'] == 'Pendiente')
+            df_p_nube.loc[condicion, 'Estado'] = 'Cobrado'
+            conn.update(worksheet="Prestamos", data=df_p_nube)
+        else:
+            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": tipo, "Categoría": categoria, "Subcategoría": subcategoria, "Monto": monto, "Descripción": desc_guardar}])
+            df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
+            conn.update(worksheet="Transacciones", data=df_final)
+            
+        # Forzar el reinicio de las cajas de texto y números a cero
+        st.session_state["reg_monto"] = 0.0
+        st.session_state["reg_desc"] = ""
         
-        if boton_guardar:
-            if tipo == "Cobro de Préstamo" and df_p[df_p["Estado"] == "Pendiente"].empty:
-                st.error("Operación cancelada: No hay deudas pendientes que procesar.")
-            else:
-                # --- 🛡️ PROTOCOLO DE PROTECCIÓN ANTI-BORRADO DE DATOS ---
-                # Forzamos una re-lectura fresca de la nube antes de concatenar para evitar pisar datos antiguos
-                df_nube = cargar_transacciones()
-                df_p_nube = cargar_prestamos()
-
-                if tipo == "Transferencia":
-                    nuevo_trans = pd.DataFrame([
-                        {"Fecha": fecha, "Cuenta": cuenta_origen, "Tipo": "Gasto", "Categoría": "Transferencia", "Subcategoría": subcategoria, "Monto": monto, "Descripción": descripcion},
-                        {"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Ingreso", "Categoría": "Transferencia", "Subcategoría": subcategoria, "Monto": monto, "Descripción": descripcion}
-                    ])
-                    df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
-                    conn.update(worksheet="Transacciones", data=df_final)
-                    
-                elif tipo == "Préstamo Otorgado":
-                    nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Gasto", "Categoría": "Préstamo Otorgado", "Subcategoría": subcategoria, "Monto": monto, "Descripción": descripcion}])
-                    df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
-                    conn.update(worksheet="Transacciones", data=df_final)
-                    
-                    nuevo_p = pd.DataFrame([{"Fecha": fecha, "Persona": persona, "Monto": monto, "Interes": interes, "Fecha_Devolucion": fecha_dev, "Cuenta": cuenta, "Estado": "Pendiente"}])
-                    df_p_final = pd.concat([df_p_nube, nuevo_p], ignore_index=True)
-                    conn.update(worksheet="Prestamos", data=df_p_final)
-                    
-                elif tipo == "Cobro de Préstamo":
-                    nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Ingreso", "Categoría": "Préstamo Cobrado", "Subcategoría": subcategoria, "Monto": monto_final, "Descripción": descripcion}])
-                    df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
-                    conn.update(worksheet="Transacciones", data=df_final)
-                    
-                    condicion = (df_p_nube['Persona'] == p_registro['Persona']) & (df_p_nube['Monto'] == p_registro['Monto']) & (df_p_nube['Estado'] == 'Pendiente')
-                    df_p_nube.loc[condicion, 'Estado'] = 'Cobrado'
-                    conn.update(worksheet="Prestamos", data=df_p_nube)
-                else:
-                    nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": tipo, "Categoría": categoria, "Subcategoría": subcategoria, "Monto": monto, "Descripción": descripcion}])
-                    df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
-                    conn.update(worksheet="Transacciones", data=df_final)
-                    
-                st.success("Operación registrada correctamente. El formulario se ha limpiado para un nuevo ingreso.")
-                # Nota: Quitamos el st.rerun() de aquí para permitir que clear_on_submit haga su trabajo sin desloguear
+        st.success("Operación procesada con éxito. Formulario limpio y listo para nueva captura.")
+        st.rerun()
 
 # --- PESTAÑA 2: PANEL DE CONTROL EJECUTIVO ---
 with tab_dashboard:
@@ -215,7 +221,6 @@ with tab_dashboard:
         
         st.sidebar.markdown("---")
         st.sidebar.subheader("Filtros de Estructura Condicional")
-        
         filtro_tipo_flujo = st.sidebar.selectbox("Tipo de Flujo", ["Todos los Movimientos", "Ingreso", "Gasto"])
 
         df_filtrado_mes = df[(df['Año'] == filtro_año) & (df['Mes'] == filtro_mes)]
@@ -296,14 +301,17 @@ with tab_dashboard:
             st.write("No se reportan deudas de capital activas a favor.")
         st.divider()
 
-        # --- SECCIÓN GRÁFICA INTERACTIVA ---
-        df_operativo_mes = df_filtrado_mes[~df_filtrado_mes['Categoría'].isin(exclusiones_filtro)]
+        # --- APLICACIÓN CASCADA DE FILTROS PARA GRÁFICOS Y TABLA ---
+        df_graficos = df_base_cascade.copy()
+        df_tabla_final = df_filtrado_mes.copy()
+
+        if filtro_tipo_flujo != "Todos los Movimientos":
+            df_graficos = df_graficos[df_graficos['Tipo'] == filtro_tipo_flujo]
+            df_tabla_final = df_tabla_final[df_tabla_final['Tipo'] == filtro_tipo_flujo]
+
         if filtro_categoria != "Todas las Categorías":
-            df_graficos = df_operativo_mes[df_operativo_mes['Categoría'] == filtro_categoria]
-            df_tabla_final = df_filtrado_mes[df_filtrado_mes['Categoría'] == filtro_categoria]
-        else:
-            df_graficos = df_operativo_mes
-            df_tabla_final = df_filtrado_mes
+            df_graficos = df_graficos[df_graficos['Categoría'] == filtro_categoria]
+            df_tabla_final = df_tabla_final[df_tabla_final['Categoría'] == filtro_categoria]
 
         if filtro_subcategoria != "Todas las Subcategorías":
             df_graficos = df_graficos[df_graficos['Subcategoría'] == filtro_subcategoria]
