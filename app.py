@@ -30,8 +30,9 @@ if not st.session_state["autenticado"]:
 
 # --- ÁRBOL DE JERARQUÍAS (DICCIONARIOS MAESTROS) ---
 SUBCATEGORIAS_GASTO = {
-    "Alimentación": ["Supermercado", "Restaurantes y delivery", "Cafés y snacks", "Agua, bebidas, suplementos alimenticios"],
-    "Vivienda": ["Arriendo / hipoteca", "Servicios básicos (agua, luz, gas)", "Internet y TV", "Mantenimiento y reparaciones", "Muebles y electrodomésticos"],
+    "Alimentación": ["Supermercado", "Restaurantes y delivery", "Cafés y snacks", "Agua, bebidas, suplementos"],
+    # --- VIVIENDA ACTUALIZADA ---
+    "Vivienda": ["Arriendo / hipoteca", "Servicios básicos (agua, luz, gas)", "Internet y TV", "Mantenimiento y reparaciones", "Muebles y equipamiento", "Suministros y aseo del hogar"],
     "Transporte": ["Transporte público", "Combustible", "Mantenimiento vehicular", "Estacionamientos y peajes", "Apps de transporte (Uber, InDrive, Didi, etc)"],
     "Salud y bienestar": ["Seguro médico", "Consultas y medicamentos", "Terapias", "Gimnasio", "Exámenes médicos"],
     "Aseo y cuidado personal": ["Productos de aseo", "Barbería / peluquería", "Cosmética", "Ropa interior y cuidado personal"],
