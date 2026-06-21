@@ -4,9 +4,9 @@ import plotly.express as px
 from datetime import date
 from streamlit_gsheets import GSheetsConnection
 
-st.set_page_config(page_title="Control Financiero Pro", page_icon="", layout="wide")
+st.set_page_config(page_title="Control Financiero Pro", page_icon="💰", layout="wide")
 
-# ---SISTEMA DE AUTENTICACIÓN ---
+# --- 🔒 SISTEMA DE AUTENTICACIÓN ---
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
@@ -78,10 +78,10 @@ def cargar_prestamos():
 df = cargar_transacciones()
 df_p = cargar_prestamos()
 
-st.title("Sistema de Inteligencia Financiera Personal")
+st.title("📊 Sistema de Inteligencia Financiera Personal")
 st.markdown("---")
 
-tab_registro, tab_dashboard = st.tabs(["Registrar movimiento", "Dashboard e Indicadores"])
+tab_registro, tab_dashboard = st.tabs(["📝 Registrar Movimiento", "📈 Dashboard e Indicadores Pro"])
 
 # --- PESTAÑA 1: FORMULARIO DE REGISTRO CON CASCADA DOBLE ---
 with tab_registro:
@@ -195,7 +195,7 @@ with tab_dashboard:
         exclusiones_filtro = ['Saldo Inicial', 'Transferencia', 'Préstamo Otorgado', 'Préstamo Cobrado']
         categorias_disponibles = sorted(list(df_filtrado_mes[~df_filtrado_mes['Categoría'].isin(exclusiones_filtro)]['Categoría'].unique()))
         
-        opciones_categorias = ["Todas las categorías"] + categorias_disponibles
+        opciones_categorias = ["📊 Todas las Categorías"] + categorias_disponibles
         filtro_categoria = st.sidebar.selectbox("Enfocar en Categoría", opciones_categorias)
 
         # Saldos Globales
@@ -206,7 +206,7 @@ with tab_dashboard:
         saldo_cts = df[df["Cuenta"] == "Cuenta CTS"]['Valor_Real'].sum()
         liquidez_disponible = saldo_sueldo + saldo_gastos + saldo_efectivo
 
-        st.subheader("Estado de Cuentas (Saldos Actuales)")
+        st.subheader("💰 Estado de Cuentas (Saldos Actuales)")
         kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
         kpi1.metric("💳 Tarjeta Sueldo", f"S/ {saldo_sueldo:,.2f}")
         kpi2.metric("🛍️ Tarjeta Gastos", f"S/ {saldo_gastos:,.2f}")
@@ -224,7 +224,7 @@ with tab_dashboard:
         
         flujo_libre = ingresos_mes - gastos_consumo - ahorro_inversion_mes
 
-        st.subheader(f"Balance Operativo - {filtro_mes} {filtro_año}")
+        st.subheader(f"📈 Balance Operativo - {filtro_mes} {filtro_año}")
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("📥 Ingresos", f"S/ {ingresos_mes:,.2f}")
         col_m2.metric("📤 Gastos Consumo", f"S/ {gastos_consumo:,.2f}", help="Dinero "quemado". Excluye lo que mandaste a ahorro.")
@@ -233,7 +233,7 @@ with tab_dashboard:
         st.divider()
 
         # Control de Préstamos
-        st.subheader("Control de Préstamos y Cuentas por Cobrar")
+        st.subheader("🤝 Control de Préstamos y Cuentas por Cobrar")
         df_p_pendientes = df_p[df_p["Estado"] == "Pendiente"]
         if not df_p_pendientes.empty:
             total_prestado = df_p_pendientes["Monto"].sum()
@@ -249,7 +249,7 @@ with tab_dashboard:
 
         # --- GRÁFICOS DINÁMICOS CON DRILL-DOWN ---
         df_operativo_mes = df_filtrado_mes[~df_filtrado_mes['Categoría'].isin(exclusiones_filtro)]
-        if filtro_categoria != "Todas las Categorías":
+        if filtro_categoria != "📊 Todas las Categorías":
             df_graficos = df_operativo_mes[df_operativo_mes['Categoría'] == filtro_categoria]
             df_tabla_final = df_filtrado_mes[df_filtrado_mes['Categoría'] == filtro_categoria]
         else:
@@ -258,8 +258,8 @@ with tab_dashboard:
 
         col_g1, col_g2 = st.columns(2)
         with col_g1:
-            if filtro_categoria != "Todas las Categorías":
-                st.markdown(f"#### Desglose de Subcategorías: {filtro_categoria}")
+            if filtro_categoria != "📊 Todas las Categorías":
+                st.markdown(f"#### 🍩 Desglose de Subcategorías: {filtro_categoria}")
                 df_pie = df_graficos
                 if not df_pie.empty:
                     pie_data = df_pie.groupby("Subcategoría")["Monto"].sum().reset_index()
@@ -268,7 +268,7 @@ with tab_dashboard:
                     st.plotly_chart(fig_pie, use_container_width=True)
                 else: st.info("Sin movimientos.")
             else:
-                st.markdown("#### Composición del Gasto (Por Categorías)")
+                st.markdown("#### 🍩 Composición del Gasto (Por Categorías)")
                 df_pie_general = df_graficos[(df_graficos['Tipo'] == 'Gasto') & (~df_graficos['Categoría'].isin(exclusiones_consumo))]
                 if not df_pie_general.empty:
                     pie_data = df_pie_general.groupby("Categoría")["Monto"].sum().reset_index()
@@ -278,7 +278,7 @@ with tab_dashboard:
                 else: st.info("Sin gastos de consumo.")
 
         with col_g2:
-            st.markdown("#### Tendencia Anual Operativa")
+            st.markdown("#### 📈 Tendencia Anual Operativa")
             df_año = df[(df['Año'] == filtro_año) & (~df['Categoría'].isin(exclusiones_filtro))]
             if not df_año.empty:
                 tendencia = df_año.groupby(["Mes_Num", "Mes", "Tipo"])["Monto"].sum().reset_index().sort_values("Mes_Num")
@@ -287,7 +287,7 @@ with tab_dashboard:
                 st.plotly_chart(fig_line, use_container_width=True)
 
         # Tabla de Detalles (Muestra las 7 columnas)
-        titulo_tabla = f"🔍 Detalle Transaccional: {filtro_categoria}" if filtro_categoria != "Todas las Categorías" else f"🔍 Ver Libro Diario Completo ({filtro_mes})"
+        titulo_tabla = f"🔍 Detalle Transaccional: {filtro_categoria}" if filtro_categoria != "📊 Todas las Categorías" else f"🔍 Ver Libro Diario Completo ({filtro_mes})"
         with st.expander(titulo_tabla):
             if df_tabla_final.empty: st.write("No se encontraron registros.")
             else: st.dataframe(df_tabla_final.sort_values(by="Fecha", ascending=False)[["Fecha", "Cuenta", "Tipo", "Categoría", "Subcategoría", "Monto", "Descripción"]], use_container_width=True)
