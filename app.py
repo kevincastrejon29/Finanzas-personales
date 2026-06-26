@@ -48,7 +48,7 @@ SUBCATEGORIAS_GASTO = {
 SUBCATEGORIAS_INGRESO = {
     "Sueldo": ["Pago regular", "Bono / Gratificación", "Adelanto"],
     "Devoluciones": ["Reembolso de tienda", "Devolución de terceros"],
-    "Otros ingresos": ["Cachuelo / Freelance", "Venta de cosas", "Rendimientos / Intereses"]
+    "Otros ingresos": ["Cachuelo / Freelance", "Venta de cosas", "Yape"]
 }
 
 # Conexión a Google Sheets
