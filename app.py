@@ -265,16 +265,37 @@ with tab_dashboard:
         saldo_cts = df[df["Cuenta"] == "Cuenta CTS"]['Valor_Real'].sum()
         liquidez_disponible = saldo_sueldo + saldo_gastos + saldo_efectivo
 
-        st.subheader("Posición de Liquidez y Cuentas Patrimoniales")
-        kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+# --- SECCIÓN: BALANCE GENERAL (STOCK HISTÓRICO) ---
+        df['Valor_Real'] = df.apply(lambda x: x['Monto'] if x['Tipo'] == 'Ingreso' else -x['Monto'], axis=1)
+        saldo_sueldo = df[df["Cuenta"] == "Tarjeta Sueldo"]['Valor_Real'].sum()
+        saldo_gastos = df[df["Cuenta"] == "Tarjeta Gastos"]['Valor_Real'].sum()
+        saldo_efectivo = df[df["Cuenta"] == "Efectivo"]['Valor_Real'].sum()
+        saldo_cts = df[df["Cuenta"] == "Cuenta CTS"]['Valor_Real'].sum()
+        liquidez_disponible = saldo_sueldo + saldo_gastos + saldo_efectivo
+
+        # Cálculos de Patrimonio a Largo Plazo (Sin importar el mes filtrado)
+        ahorro_historico_total = df[df['Categoría'] == 'Ahorro e inversión']['Monto'].sum()
+        total_prestado = df_p[df_p["Estado"] == "Pendiente"]["Monto"].sum() if not df_p[df_p["Estado"] == "Pendiente"].empty else 0
+        patrimonio_neto = liquidez_disponible + saldo_cts + ahorro_historico_total + total_prestado
+
+        st.subheader("Balance General (Posición Patrimonial)")
+        
+        st.markdown("**Liquidez Operativa (Corto Plazo)**")
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
         kpi1.metric("Tarjeta Sueldo", f"S/ {saldo_sueldo:,.2f}")
         kpi2.metric("Tarjeta Gastos", f"S/ {saldo_gastos:,.2f}")
         kpi3.metric("Efectivo Físico", f"S/ {saldo_efectivo:,.2f}")
-        kpi4.metric("Fondo CTS", f"S/ {saldo_cts:,.2f}")
-        kpi5.metric("Liquidez Disponible", f"S/ {liquidez_disponible:,.2f}")
+        kpi4.metric("Liquidez Disponible", f"S/ {liquidez_disponible:,.2f}")
+        
+        st.markdown("**Capital y Reservas (Largo Plazo)**")
+        kpi5, kpi6, kpi7, kpi8 = st.columns(4)
+        kpi5.metric("Fondo CTS", f"S/ {saldo_cts:,.2f}")
+        kpi6.metric("Ahorro / Inversión Acumulado", f"S/ {ahorro_historico_total:,.2f}", help="Suma de TODO tu ahorro histórico desde el día 1.")
+        kpi7.metric("Cuentas por Cobrar", f"S/ {total_prestado:,.2f}", help="Dinero prestado pendiente de devolución.")
+        kpi8.metric("Patrimonio Neto", f"S/ {patrimonio_neto:,.2f}", help="Suma de tu liquidez, CTS, inversiones y préstamos por cobrar.")
         st.divider()
 
-        # Fórmulas de Flujo Operativo
+        # --- SECCIÓN: ESTADO DE RESULTADOS (FLUJO MENSUAL) ---
         exclusiones_consumo = exclusiones_filtro + ['Ahorro e inversión']
         ingresos_mes = df_filtrado_mes[(df_filtrado_mes['Tipo'] == 'Ingreso') & (~df_filtrado_mes['Categoría'].isin(exclusiones_filtro))]['Monto'].sum()
         gastos_consumo = df_filtrado_mes[(df_filtrado_mes['Tipo'] == 'Gasto') & (~df_filtrado_mes['Categoría'].isin(exclusiones_consumo))]['Monto'].sum()
@@ -284,9 +305,9 @@ with tab_dashboard:
         st.subheader(f"Desempeño Operativo General — {filtro_mes} {filtro_año}")
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("Ingresos Operativos", f"S/ {ingresos_mes:,.2f}")
-        col_m2.metric("Gastos de Consumo", f"S/ {gastos_consumo:,.2f}", help="Capital consumido en operaciones del mes. Excluye transferencias a cuentas de ahorro e inversión.")
-        col_m3.metric("Ahorro e Inversión", f"S/ {ahorro_inversion_mes:,.2f}", help="Capital reservado y transferido hacia el incremento patrimonial.")
-        col_m4.metric("Flujo Libre Neto", f"S/ {flujo_libre:,.2f}", help="Excedente de liquidez tras cubrir obligaciones operativas y de inversión.")
+        col_m2.metric("Gastos de Consumo", f"S/ {gastos_consumo:,.2f}", help="Capital consumido. Excluye transferencias a ahorro.")
+        col_m3.metric("Ahorrado ESTE MES", f"S/ {ahorro_inversion_mes:,.2f}", help="El esfuerzo de ahorro solo en el mes seleccionado.")
+        col_m4.metric("Flujo Libre Neto", f"S/ {flujo_libre:,.2f}", help="Excedente de liquidez tras cubrir consumo e inversión.")
         st.divider()
 
         # Control de Préstamos
