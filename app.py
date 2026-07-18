@@ -48,8 +48,10 @@ SUBCATEGORIAS_GASTO = {
 SUBCATEGORIAS_INGRESO = {
     "Sueldo": ["Pago regular", "Bono / Gratificación", "Adelanto"],
     "Devoluciones": ["Reembolso de tienda", "Devolución de terceros"],
+    "Ahorro e inversión": ["Rescate de ahorros (Guardadito)", "Retiro de inversión", "Dividendos"],
     "Otros ingresos": ["Cachuelo / Freelance", "Venta de cosas", "Yape"]
 }
+
 
 # Conexión a Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -273,8 +275,11 @@ with tab_dashboard:
         saldo_cts = df[df["Cuenta"] == "Cuenta CTS"]['Valor_Real'].sum()
         liquidez_disponible = saldo_sueldo + saldo_gastos + saldo_efectivo
 
-        # Cálculos de Patrimonio a Largo Plazo (Sin importar el mes filtrado)
-        ahorro_historico_total = df[df['Categoría'] == 'Ahorro e inversión']['Monto'].sum()
+# Cálculos de Patrimonio a Largo Plazo (Sin importar el mes filtrado)
+        ahorro_aportado = df[(df['Tipo'] == 'Gasto') & (df['Categoría'] == 'Ahorro e inversión')]['Monto'].sum()
+        ahorro_rescatado = df[(df['Tipo'] == 'Ingreso') & (df['Categoría'] == 'Ahorro e inversión')]['Monto'].sum()
+        ahorro_historico_total = ahorro_aportado - ahorro_rescatado
+        
         total_prestado = df_p[df_p["Estado"] == "Pendiente"]["Monto"].sum() if not df_p[df_p["Estado"] == "Pendiente"].empty else 0
         patrimonio_neto = liquidez_disponible + saldo_cts + ahorro_historico_total + total_prestado
 
