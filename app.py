@@ -141,15 +141,15 @@ with tab_registro:
             if df_p_pendientes.empty:
                 st.warning("No se registran cuentas por cobrar pendientes en el sistema.")
                 st.stop()
-            opciones_p = df_p_pendientes.apply(lambda x: f"{x['Persona']} | S/ {x['Monto']} (Vence: {x['Fecha_Devolucion']})", axis=1).tolist()
+            opciones_p = df_p_pendientes.apply(lambda x: f"{x['Persona']} | S/ {x['Monto']:,.2f} (Vence: {x['Fecha_Devolucion']})", axis=1).tolist()
             prestamo_sel = st.selectbox("Seleccionar Cuenta por Cobrar", opciones_p)
             idx_sel = opciones_p.index(prestamo_sel)
             p_registro = df_p_pendientes.iloc[idx_sel]
             cuenta = st.selectbox("Cuenta de Destino (Ingreso)", cuentas_operativas)
             categoria = "Préstamo Cobrado"
             subcategoria = f"De: {p_registro['Persona']}"
-            monto_final = float(p_registro['Monto']) * (1 + (float(p_registro['Interes']) / 100))
-            st.success(f"Ingreso total calculado (Capital + Intereses): S/ {monto_final:,.2f}")
+            deuda_total = float(p_registro['Monto']) * (1 + (float(p_registro['Interes']) / 100))
+            st.info(f"Deuda total acumulada: S/ {deuda_total:,.2f}. Ingresa en el campo **Monto (S/)** de la izquierda la cantidad exacta que te están devolviendo hoy.")
 
         # Atamos el form_id a la clave de la descripción
         descripcion = st.text_input("Descripción / Referencia (Opcional)", key=f"desc_{st.session_state['form_id']}")
@@ -185,17 +185,26 @@ with tab_registro:
             conn.update(worksheet="Prestamos", data=df_p_final)
             
         elif tipo == "Cobro de Préstamo":
-            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Ingreso", "Categoría": "Préstamo Cobrado", "Subcategoría": subcategoria, "Monto": monto_final, "Descripción": desc_guardar}])
+            # Guardamos la transacción con el 'monto' parcial o total que escribiste en la Columna 1
+            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": "Ingreso", "Categoría": "Préstamo Cobrado", "Subcategoría": subcategoria, "Monto": monto, "Descripción": desc_guardar}])
             df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
             conn.update(worksheet="Transacciones", data=df_final)
             
+            # Identificamos el préstamo original en la base de datos
             condicion = (df_p_nube['Persona'] == p_registro['Persona']) & (df_p_nube['Monto'] == p_registro['Monto']) & (df_p_nube['Estado'] == 'Pendiente')
-            df_p_nube.loc[condicion, 'Estado'] = 'Cobrado'
+            
+            # Calculamos si queda saldo pendiente
+            deuda_total = float(p_registro['Monto']) * (1 + (float(p_registro['Interes']) / 100))
+            deuda_restante = deuda_total - monto
+            
+            if deuda_restante <= 0.01: # Tolerancia de 1 céntimo por redondeos matemáticos
+                df_p_nube.loc[condicion, 'Estado'] = 'Cobrado'
+            else:
+                # Amortización: Actualizamos el capital del préstamo para que refleje la reducción
+                nuevo_capital = deuda_restante / (1 + (float(p_registro['Interes']) / 100))
+                df_p_nube.loc[condicion, 'Monto'] = nuevo_capital
+                
             conn.update(worksheet="Prestamos", data=df_p_nube)
-        else:
-            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": tipo, "Categoría": categoria, "Subcategoría": subcategoria, "Monto": monto, "Descripción": desc_guardar}])
-            df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
-            conn.update(worksheet="Transacciones", data=df_final)
             
         # Incrementar el ID del formulario para generar nuevos inputs limpios y guardar notificación
         st.session_state["form_id"] += 1
