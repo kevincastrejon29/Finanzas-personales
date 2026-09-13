@@ -35,7 +35,7 @@ SUBCATEGORIAS_GASTO = {
     "Transporte": ["Transporte público", "Combustible", "Mantenimiento vehicular", "Estacionamientos y peajes", "Taxi (Uber, InDrive, Didi)"],
     "Salud y bienestar": ["Seguro médico", "Consultas y medicamentos", "Terapias", "Gimnasio", "Exámenes médicos"],
     "Aseo y cuidado personal": ["Productos de aseo", "Barbería / peluquería", "Cosmética", "Ropa interior y cuidado personal"],
-    "Ropa y accesorios": ["Ropa diaria", "Calzado", "Accesorios", "Reparaciones de ropa"],
+    "Ropa y accesorios": ["Ropa diaria", "Calzado", "Accesorios", "Lavandería y reparaciones"],
     "Educación y desarrollo": ["Cursos y certificaciones", "Libros", "Plataformas educativas", "Idiomas", "Eventos académicos"],
     "Deportes y hobbies": ["Equipamiento deportivo", "Inscripciones", "Clases", "Mantenimiento"],
     "Suscripciones y entretenimiento": ["Streaming (Netflix, Spotify, etc.)", "Videojuegos", "Cine y espectáculos", "Suscripciones digitales"],
@@ -205,6 +205,10 @@ with tab_registro:
                 df_p_nube.loc[condicion, 'Monto'] = nuevo_capital
                 
             conn.update(worksheet="Prestamos", data=df_p_nube)
+        else:
+            nuevo_trans = pd.DataFrame([{"Fecha": fecha, "Cuenta": cuenta, "Tipo": tipo, "Categoría": categoria, "Subcategoría": subcategoria, "Monto": monto, "Descripción": desc_guardar}])
+            df_final = pd.concat([df_nube, nuevo_trans], ignore_index=True)
+            conn.update(worksheet="Transacciones", data=df_final)
             
         # Incrementar el ID del formulario para generar nuevos inputs limpios y guardar notificación
         st.session_state["form_id"] += 1
@@ -276,7 +280,7 @@ with tab_dashboard:
         saldo_cts = df[df["Cuenta"] == "Cuenta CTS"]['Valor_Real'].sum()
         liquidez_disponible = saldo_sueldo + saldo_gastos + saldo_efectivo
 
-# --- SECCIÓN: BALANCE GENERAL (STOCK HISTÓRICO) ---
+        # --- SECCIÓN: BALANCE GENERAL (STOCK HISTÓRICO) ---
         df['Valor_Real'] = df.apply(lambda x: x['Monto'] if x['Tipo'] == 'Ingreso' else -x['Monto'], axis=1)
         saldo_sueldo = df[df["Cuenta"] == "Tarjeta Sueldo"]['Valor_Real'].sum()
         saldo_gastos = df[df["Cuenta"] == "Tarjeta Gastos"]['Valor_Real'].sum()
@@ -284,7 +288,7 @@ with tab_dashboard:
         saldo_cts = df[df["Cuenta"] == "Cuenta CTS"]['Valor_Real'].sum()
         liquidez_disponible = saldo_sueldo + saldo_gastos + saldo_efectivo
 
-# Cálculos de Patrimonio a Largo Plazo (Sin importar el mes filtrado)
+        # Cálculos de Patrimonio a Largo Plazo (Sin importar el mes filtrado)
         ahorro_aportado = df[(df['Tipo'] == 'Gasto') & (df['Categoría'] == 'Ahorro e inversión')]['Monto'].sum()
         ahorro_rescatado = df[(df['Tipo'] == 'Ingreso') & (df['Categoría'] == 'Ahorro e inversión')]['Monto'].sum()
         ahorro_historico_total = ahorro_aportado - ahorro_rescatado
